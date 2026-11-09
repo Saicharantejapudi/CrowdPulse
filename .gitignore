@@ -45,10 +45,16 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Node.js / React Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.pt
+
 # Large Raw Datasets & Archives
 data/raw/
 Data/raw/
-Data/ShanghaiTech/
+Data/
 data/ShanghaiTech/
 *.zip
 *.tar.gz
