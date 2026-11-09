@@ -123,27 +123,46 @@ export default function App() {
     try {
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
       }
 
+      const hasDeviceId = deviceId && typeof deviceId === 'string' && deviceId.trim().length > 0;
       const constraints = {
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+        video: hasDeviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { width: { ideal: 1280 }, height: { ideal: 720 } },
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (cErr) {
+        console.warn('Constrained getUserMedia failed, trying fallback video: true', cErr);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       mediaStreamRef.current = stream;
+
+      // Unhide wrapper immediately
+      setCameraActive(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play();
-          setCameraActive(true);
+          videoRef.current.play().catch((e) => console.warn('Video play error on metadata:', e));
         };
+        videoRef.current.play().catch((e) => console.warn('Direct video play error:', e));
+      }
+
+      // Refresh device list with populated labels now that permission is active
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices().then((devs) => {
+          const videoDevs = devs.filter((d) => d.kind === 'videoinput');
+          if (videoDevs.length > 0) setDevices(videoDevs);
+        }).catch(() => {});
       }
     } catch (err) {
+      console.error('Camera access failed:', err);
       setErrorMsg(`Webcam error: ${err.message}. Please allow camera access in browser permissions.`);
       setCameraActive(false);
     }
@@ -174,58 +193,63 @@ export default function App() {
     if (video.readyState < 2 || video.videoWidth === 0) return;
 
     isDetectingRef.current = true;
-    const offCanvas = offscreenCanvasRef.current;
-    offCanvas.width = video.videoWidth;
-    offCanvas.height = video.videoHeight;
-    const offCtx = offCanvas.getContext('2d');
-    offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+    try {
+      const offCanvas = offscreenCanvasRef.current;
+      offCanvas.width = video.videoWidth;
+      offCanvas.height = video.videoHeight;
+      const offCtx = offCanvas.getContext('2d');
+      offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
 
-    offCanvas.toBlob(async (blob) => {
-      if (!blob) {
-        isDetectingRef.current = false;
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', blob, 'webcam_frame.jpg');
-      formData.append('confidence', confidence);
-      formData.append('iou', iou);
-      formData.append('imgsz', imgsz);
-      formData.append('model_name', modelName);
-      formData.append('green_cutoff', greenCutoff);
-      formData.append('red_cutoff', redCutoff);
-      formData.append('draw_boxes', 'false'); // Frontend draws boxes smoothly
-      formData.append('draw_grid', 'false');
-      formData.append('draw_points', 'false');
-
-      try {
-        const res = await fetch('/api/detect', {
-          method: 'POST',
-          body: formData,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDetectionResult(data);
-
-          // Render live bounding boxes on overlay canvas
-          drawOverlay(data, video.videoWidth, video.videoHeight);
-
-          // Calculate FPS
-          frameCounterRef.current += 1;
-          const now = Date.now();
-          if (now - lastFpsTimeRef.current >= 1000) {
-            setFps(Math.round((frameCounterRef.current * 1000) / (now - lastFpsTimeRef.current)));
-            frameCounterRef.current = 0;
-            lastFpsTimeRef.current = now;
-          }
+      offCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          isDetectingRef.current = false;
+          return;
         }
-      } catch (err) {
-        // Silently handle transient drop
-      } finally {
-        isDetectingRef.current = false;
-      }
-    }, 'image/jpeg', 0.85);
-  }, [cameraActive, liveDetectActive, confidence, iou, imgsz, modelName, greenCutoff, redCutoff]);
+
+        const formData = new FormData();
+        formData.append('file', blob, 'webcam_frame.jpg');
+        formData.append('confidence', confidence);
+        formData.append('iou', iou);
+        formData.append('imgsz', imgsz);
+        formData.append('model_name', modelName);
+        formData.append('green_cutoff', greenCutoff);
+        formData.append('red_cutoff', redCutoff);
+        formData.append('draw_boxes', 'false'); // Frontend draws boxes smoothly
+        formData.append('draw_grid', 'false');
+        formData.append('draw_points', 'false');
+
+        try {
+          const res = await fetch('/api/detect', {
+            method: 'POST',
+            body: formData,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDetectionResult(data);
+
+            // Render live bounding boxes on overlay canvas
+            drawOverlay(data, video.videoWidth, video.videoHeight);
+
+            // Calculate FPS
+            frameCounterRef.current += 1;
+            const now = Date.now();
+            if (now - lastFpsTimeRef.current >= 1000) {
+              setFps(Math.round((frameCounterRef.current * 1000) / (now - lastFpsTimeRef.current)));
+              frameCounterRef.current = 0;
+              lastFpsTimeRef.current = now;
+            }
+          }
+        } catch (err) {
+          console.warn('Live frame transmission error:', err);
+        } finally {
+          isDetectingRef.current = false;
+        }
+      }, 'image/jpeg', 0.85);
+    } catch (outerErr) {
+      console.warn('Canvas frame capture error:', outerErr);
+      isDetectingRef.current = false;
+    }
+  }, [cameraActive, liveDetectActive, confidence, iou, imgsz, modelName, greenCutoff, redCutoff, drawBoxes, drawGrid, drawPoints]);
 
   // Streaming timer
   useEffect(() => {
@@ -242,8 +266,8 @@ export default function App() {
   const drawOverlay = (result, videoW, videoH) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = videoW;
-    canvas.height = videoH;
+    if (canvas.width !== videoW) canvas.width = videoW;
+    if (canvas.height !== videoH) canvas.height = videoH;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, videoW, videoH);
 
@@ -956,14 +980,27 @@ export default function App() {
           <div className="viewer-canvas-wrapper">
             {inputMode === 'webcam' ? (
               <div className="webcam-container">
-                {cameraActive ? (
-                  <div className="webcam-video-wrapper">
-                    <div className="live-badge">● LIVE CAM</div>
-                    {fps > 0 && <div className="fps-badge">{fps} FPS</div>}
-                    <video ref={videoRef} className="webcam-video" playsInline muted autoPlay />
-                    <canvas ref={canvasRef} className="webcam-overlay-canvas" />
-                  </div>
-                ) : (
+                {/* Live video and canvas overlay are always mounted in DOM */}
+                <div
+                  className="webcam-video-wrapper"
+                  style={{ display: cameraActive ? 'inline-flex' : 'none' }}
+                >
+                  <div className="live-badge">● LIVE CAM</div>
+                  {fps > 0 && <div className="fps-badge">{fps} FPS</div>}
+                  <video
+                    ref={videoRef}
+                    className="webcam-video"
+                    playsInline
+                    muted
+                    autoPlay
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="webcam-overlay-canvas"
+                  />
+                </div>
+
+                {!cameraActive && (
                   <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '60px 20px' }}>
                     <Video size={56} style={{ opacity: 0.5, marginBottom: '16px', color: 'var(--accent-blue)' }} />
                     <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f1f5f9', marginBottom: '8px' }}>
