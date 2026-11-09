@@ -1,20 +1,13 @@
 {
-  "model_name": "CrowdPulse Champion Ensemble (RandomForestRegressor)",
+  "model_name": "CrowdPulse Champion Pipeline (ENSEMBLE)",
   "pipeline_architecture": [
+    "SpatialFeatureAugmenter",
     "StandardScaler",
-    "RandomForestRegressor"
+    "VotingRegressor(RF + HGB_Poisson + RF_Log1p)"
   ],
-  "hyperparameters": {
-    "regressor__n_estimators": 150,
-    "regressor__max_depth": 14,
-    "regressor__min_samples_split": 4,
-    "regressor__max_features": 1.0
-  },
-  "cv_best_score_neg_mae": 0.0,
-  "training_samples": 3600,
-  "test_samples": 2844,
-  "feature_count": 31,
-  "feature_names": [
+  "core_feature_count": 31,
+  "augmented_feature_count": 39,
+  "core_feature_names": [
     "hog_bin_0_deg0_22",
     "hog_bin_1_deg22_45",
     "hog_bin_2_deg45_67",
@@ -47,22 +40,65 @@
     "spatial_zone_row",
     "spatial_zone_col"
   ],
+  "augmented_feature_names": [
+    "hog_bin_0_deg0_22",
+    "hog_bin_1_deg22_45",
+    "hog_bin_2_deg45_67",
+    "hog_bin_3_deg67_90",
+    "hog_bin_4_deg90_112",
+    "hog_bin_5_deg112_135",
+    "hog_bin_6_deg135_157",
+    "hog_bin_7_deg157_180",
+    "hog_gradient_mean",
+    "hog_gradient_std",
+    "canny_edge_density_ratio",
+    "canny_edge_mean_gradient",
+    "lbp_bin_0_spot_dark",
+    "lbp_bin_1_edge_pattern",
+    "lbp_bin_2_edge_pattern",
+    "lbp_bin_3_corner_pattern",
+    "lbp_bin_4_corner_pattern",
+    "lbp_bin_5_corner_pattern",
+    "lbp_bin_6_corner_pattern",
+    "lbp_bin_7_texture_transition",
+    "lbp_bin_8_texture_transition",
+    "lbp_bin_9_flat_region",
+    "lbp_texture_entropy",
+    "lbp_texture_energy",
+    "intensity_mean",
+    "intensity_std",
+    "intensity_variance",
+    "intensity_skewness",
+    "intensity_kurtosis",
+    "spatial_zone_row",
+    "spatial_zone_col",
+    "perspective_edge_density",
+    "perspective_hog_gradient",
+    "perspective_lbp_entropy",
+    "spatial_center_dist",
+    "edge_intensity_ratio",
+    "hog_edge_synergy",
+    "lbp_entropy_energy_ratio",
+    "intensity_spread_ratio"
+  ],
+  "training_samples": 3600,
+  "test_samples": 2844,
   "risk_tier_thresholds": {
     "green_upper": 10,
     "yellow_upper": 25,
     "red_lower": 25
   },
   "train_metrics": {
-    "mae": 2.717152178177717,
-    "rmse": 7.934391778428403,
-    "r2": 0.9536288148510255
+    "mae": 1.6751544353112364,
+    "rmse": 4.706859700494297,
+    "r2": 0.9836813803399473
   },
   "test_metrics": {
-    "mae": 6.538200371170748,
-    "rmse": 19.645308791426597,
-    "r2": 0.7270973761661768
+    "mae": 6.00982932660507,
+    "rmse": 18.65628199420998,
+    "r2": 0.7538838078031989
   },
-  "trained_at": "2026-11-09T16:43:40.388834",
+  "trained_at": "2026-11-09T17:13:05.935112",
   "framework_versions": {
     "scikit_learn": "1.7.2",
     "joblib": "1.5.2",
