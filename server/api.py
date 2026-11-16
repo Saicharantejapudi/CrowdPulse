@@ -73,6 +73,30 @@ def get_classical_pipeline():
     return CLASSICAL_PIPELINE
 
 
+PET_MODEL_INSTANCE = None
+
+def get_pet_model():
+    """Loads and caches the SkyeBrowse PET (Point-quEry Transformer) for ultra-dense crowds (1,000 - 10,000+ heads)."""
+    global PET_MODEL_INSTANCE
+    if PET_MODEL_INSTANCE is None:
+        pet_dir = PROJECT_ROOT / "models" / "pet_crowd"
+        weights_file = pet_dir / "weights" / "PET_Finetuned.safetensors"
+        if not weights_file.exists():
+            return None, None, None
+        import sys
+        if str(pet_dir) not in sys.path:
+            sys.path.insert(0, str(pet_dir))
+        import count
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Loading SkyeBrowse PET Transformer on {device}...")
+        model = count.build_pet(device)
+        model.load_state_dict(count.load_state_dict(weights_file), strict=True)
+        model.eval()
+        PET_MODEL_INSTANCE = (model, device, count)
+        print("SkyeBrowse PET Transformer loaded successfully.")
+    return PET_MODEL_INSTANCE
+
+
 def run_sliced_detection(
     image: np.ndarray,
     detector: YOLO,
@@ -227,6 +251,41 @@ def process_detection(
         total_count = len(detections_list)
         model_display = f"{effective_model} (Sliced Native-Resolution SAHI)"
         resolution_display = "480px Sliced Native Tiles"
+    elif detection_mode == "pet_transformer":
+        pet_tuple = get_pet_model()
+        if pet_tuple[0] is None:
+            raise ValueError("SkyeBrowse PET weights 'models/pet_crowd/weights/PET_Finetuned.safetensors' not found.")
+        pet_model, pet_device, pet_count = pet_tuple
+
+        # Adaptive threshold: if confidence >= 0.05 use slider value, default for dense crowds is 0.35
+        pet_thresh = confidence if confidence >= 0.05 else 0.35
+        upscale_factor = 1.35 if max_dim < 1200 else 1.0
+
+        points, scores = pet_count.predict_candidates_tiled(
+            pet_model, image, pet_device, upscale=upscale_factor, tile=768, overlap=192
+        )
+        filtered_points = pet_count.filter_predictions(points, scores, threshold=pet_thresh)
+
+        for idx, pt in enumerate(filtered_points):
+            cx = float(pt[0])
+            cy = float(pt[1])
+            r = max(0, min(grid_rows - 1, int(cy / row_step)))
+            c = max(0, min(grid_cols - 1, int(cx / col_step)))
+            zone_id = f"Zone_{r}_{c}"
+            zone_counts[zone_id] += 1
+            box_rad = 5.0
+            detections_list.append({
+                "id": idx + 1,
+                "box": [round(cx - box_rad, 1), round(cy - box_rad, 1), round(cx + box_rad, 1), round(cy + box_rad, 1)],
+                "center": [round(cx, 1), round(cy, 1)],
+                "confidence": round(float(pet_thresh), 3),
+                "zone_id": zone_id,
+                "row": r,
+                "col": c,
+            })
+        total_count = len(detections_list)
+        model_display = "SkyeBrowse PET Transformer (Point-quEry Crowd Specialist)"
+        resolution_display = f"768px Windowed Attention (PET {total_count:,} heads)"
     else:
         # Standard Single-Pass Detection
         max_dim = max(h, w)
@@ -336,19 +395,26 @@ def process_detection(
         tier = coordinator.agents[zid].risk_tier
         box_color = tier_colors_bgr[tier]
 
-        if draw_boxes:
+        if draw_boxes and detection_mode != "pet_transformer":
             cv2.rectangle(annotated, (x1, y1), (x2, y2), box_color, line_thick)
-            label = f"#{det['id']} {conf*100:.0f}%"
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.75, 1)
-            cv2.rectangle(annotated, (x1, y1 - th - 4), (x1 + tw + 4, y1), box_color, -1)
-            cv2.putText(annotated, label, (x1 + 2, y1 - 2), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.75, (255, 255, 255), 1, cv2.LINE_AA)
+            if total_count <= 250:
+                label = f"#{det['id']} {conf*100:.0f}%"
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.75, 1)
+                cv2.rectangle(annotated, (x1, y1 - th - 4), (x1 + tw + 4, y1), box_color, -1)
+                cv2.putText(annotated, label, (x1 + 2, y1 - 2), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.75, (255, 255, 255), 1, cv2.LINE_AA)
 
         if draw_points:
-            head_x = int(round(det["center"][0]))
-            head_y = int(round(y1 + (y2 - y1) * 0.12))
-            pt_radius = max(3, int(round(4 * base_scale)))
-            cv2.circle(annotated, (head_x, head_y), pt_radius, (0, 255, 255), -1)
-            cv2.circle(annotated, (head_x, head_y), pt_radius + 1, (0, 0, 0), 1)
+            if detection_mode == "pet_transformer":
+                head_x = int(round(det["center"][0]))
+                head_y = int(round(det["center"][1]))
+                # Render high-contrast SkyeBrowse purple dot over each detected head
+                cv2.circle(annotated, (head_x, head_y), 3, (215, 30, 160), -1)
+            else:
+                head_x = int(round(det["center"][0]))
+                head_y = int(round(y1 + (y2 - y1) * 0.12))
+                pt_radius = max(3, int(round(4 * base_scale)))
+                cv2.circle(annotated, (head_x, head_y), pt_radius, (0, 255, 255), -1)
+                cv2.circle(annotated, (head_x, head_y), pt_radius + 1, (0, 0, 0), 1)
 
     elapsed_ms = round((time.time() - start_time) * 1000.0, 1)
     annotated_b64 = encode_image_base64(annotated)

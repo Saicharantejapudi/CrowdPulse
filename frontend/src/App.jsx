@@ -74,11 +74,18 @@ export default function App() {
   // Preset switch handler
   const applyPreset = (mode) => {
     setPreset(mode);
-    if (mode === 'aerial') {
-      setDetectionMode('aerial_sliced');
-      setConfidence(0.25);
-      setImgsz(480);
-      setModelName('yolov8_head_detector.pt');
+    if (mode === 'festival') {
+      setDetectionMode('pet_transformer');
+      setConfidence(0.35);
+      setDrawBoxes(false);
+      setDrawPoints(true);
+    } else if (mode === 'aerial') {
+      setDetectionMode('standard');
+      setConfidence(0.15);
+      setImgsz(1920);
+      setModelName('yolov8m.pt');
+      setDrawBoxes(true);
+      setDrawPoints(true);
     } else if (mode === 'classical') {
       setDetectionMode('classical');
     } else if (mode === 'dense') {
@@ -715,7 +722,23 @@ export default function App() {
               <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>
                 Accuracy & Crowd Density Presets
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{
+                    borderColor: preset === 'festival' ? '#c084fc' : '',
+                    background: preset === 'festival' ? 'rgba(192, 132, 252, 0.2)' : '',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
+                    justifyContent: 'center',
+                    fontWeight: preset === 'festival' ? 700 : 500,
+                  }}
+                  onClick={() => applyPreset('festival')}
+                  title="SkyeBrowse PET Point-quEry Transformer - Best for Ultra-Dense Festival Crowds (4,800+ heads)"
+                >
+                  <Users size={13} color="#c084fc" /> Festival 4k+
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -728,7 +751,7 @@ export default function App() {
                     fontWeight: preset === 'aerial' ? 700 : 500,
                   }}
                   onClick={() => applyPreset('aerial')}
-                  title="Native 480px Sliced SAHI Tiling with NMS - Best for Drones & Festivals"
+                  title="Full HD 1920px Standard YOLOv8 - Best for Overhead Drone Shots & Sports Fields"
                 >
                   <Sparkles size={13} color="#38bdf8" /> Drone & Aerial
                 </button>
@@ -802,8 +825,9 @@ export default function App() {
                 value={detectionMode}
                 onChange={(e) => {
                   setDetectionMode(e.target.value);
-                  if (e.target.value === 'aerial_sliced') setPreset('aerial');
-                  else if (e.target.value === 'classical') setPreset('classical');
+                  if (e.target.value === 'pet_transformer') applyPreset('festival');
+                  else if (e.target.value === 'aerial_sliced') applyPreset('aerial');
+                  else if (e.target.value === 'classical') applyPreset('classical');
                   else setPreset('custom');
                 }}
                 style={{
@@ -818,10 +842,25 @@ export default function App() {
                 }}
               >
                 <option value="standard">🚀 Standard Single-Pass (YOLOv8 - Best for Webcam & Close Photos)</option>
-                <option value="aerial_sliced">🚁 Aerial & Ultra-Dense Sliced (SAHI 480px - Best for Drones & Festivals)</option>
+                <option value="pet_transformer">👥 SkyeBrowse PET Transformer (Point-quEry - Best for Festivals & Arenas: 4,800+ Heads)</option>
+                <option value="aerial_sliced">🚁 Aerial Drone Sliced (SAHI 480px - High-Res Drone Views)</option>
                 <option value="classical">🔬 INT395 Classical ML (HOG + LBP + Canny Regression on 3x3 Grid)</option>
               </select>
             </div>
+
+            {detectionMode === 'pet_transformer' && (
+              <div style={{
+                background: 'rgba(192, 132, 252, 0.12)',
+                border: '1px solid rgba(192, 132, 252, 0.35)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                color: '#e9d5ff',
+                lineHeight: 1.4,
+              }}>
+                <strong>SkyeBrowse PET Point-quEry Architecture:</strong> Windowed attention transformer cross-attends dense head queries across 768px native patches. Calibrated on ShanghaiTech for festival arenas (4,800+ heads).
+              </div>
+            )}
 
             {detectionMode === 'classical' ? (
               <div style={{
@@ -839,7 +878,7 @@ export default function App() {
               <>
                 <div className="slider-group">
                   <div className="slider-label">
-                    <span>Confidence Threshold</span>
+                    <span>{detectionMode === 'pet_transformer' ? 'Head-Confidence Threshold (lower = more dense-core recall)' : 'Confidence Threshold'}</span>
                     <span style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>{(confidence * 100).toFixed(0)}%</span>
                   </div>
                   <input

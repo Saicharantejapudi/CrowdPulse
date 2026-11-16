@@ -1,0 +1,9 @@
+spaces
+google-auth
+opencv-python-headless
+requests
+scipy
+safetensors
+pillow
+pillow-heif
+numpy
