@@ -38,6 +38,7 @@ export default function App() {
   const [serverOnline, setServerOnline] = useState(false);
 
   // High Accuracy Detection Settings
+  const [detectionMode, setDetectionMode] = useState('standard'); // 'standard', 'aerial_sliced', 'classical'
   const [preset, setPreset] = useState('dense');
   const [confidence, setConfidence] = useState(0.15);
   const [iou, setIou] = useState(0.45);
@@ -73,15 +74,25 @@ export default function App() {
   // Preset switch handler
   const applyPreset = (mode) => {
     setPreset(mode);
-    if (mode === 'dense') {
+    if (mode === 'aerial') {
+      setDetectionMode('aerial_sliced');
+      setConfidence(0.25);
+      setImgsz(480);
+      setModelName('yolov8_head_detector.pt');
+    } else if (mode === 'classical') {
+      setDetectionMode('classical');
+    } else if (mode === 'dense') {
+      setDetectionMode('standard');
       setConfidence(0.15);
-      setImgsz(1280);
+      setImgsz(1920);
       setModelName('yolov8m.pt');
     } else if (mode === 'balanced') {
+      setDetectionMode('standard');
       setConfidence(0.25);
       setImgsz(1024);
       setModelName('yolov8s.pt');
     } else if (mode === 'fast') {
+      setDetectionMode('standard');
       setConfidence(0.30);
       setImgsz(640);
       setModelName('yolov8n.pt');
@@ -217,6 +228,7 @@ export default function App() {
         formData.append('draw_boxes', 'false'); // Frontend draws boxes smoothly
         formData.append('draw_grid', 'false');
         formData.append('draw_points', 'false');
+        formData.append('detection_mode', detectionMode);
 
         try {
           const res = await fetch('/api/detect', {
@@ -249,7 +261,7 @@ export default function App() {
       console.warn('Canvas frame capture error:', outerErr);
       isDetectingRef.current = false;
     }
-  }, [cameraActive, liveDetectActive, confidence, iou, imgsz, modelName, greenCutoff, redCutoff, drawBoxes, drawGrid, drawPoints]);
+  }, [cameraActive, liveDetectActive, confidence, iou, imgsz, modelName, greenCutoff, redCutoff, drawBoxes, drawGrid, drawPoints, detectionMode]);
 
   // Streaming timer
   useEffect(() => {
@@ -393,6 +405,7 @@ export default function App() {
       formData.append('model_name', modelName);
       formData.append('green_cutoff', greenCutoff);
       formData.append('red_cutoff', redCutoff);
+      formData.append('detection_mode', detectionMode);
 
       const res = await fetch(`/api/detect/sample/${sampleName}`, {
         method: 'POST',
@@ -428,6 +441,7 @@ export default function App() {
     formData.append('draw_boxes', drawBoxes);
     formData.append('draw_grid', drawGrid);
     formData.append('draw_points', drawPoints);
+    formData.append('detection_mode', detectionMode);
 
     try {
       const res = await fetch('/api/detect', {
@@ -699,22 +713,54 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>
-                Accuracy & Density Presets
+                Accuracy & Crowd Density Presets
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{
+                    borderColor: preset === 'aerial' ? '#38bdf8' : '',
+                    background: preset === 'aerial' ? 'rgba(56, 189, 248, 0.2)' : '',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
+                    justifyContent: 'center',
+                    fontWeight: preset === 'aerial' ? 700 : 500,
+                  }}
+                  onClick={() => applyPreset('aerial')}
+                  title="Native 480px Sliced SAHI Tiling with NMS - Best for Drones & Festivals"
+                >
+                  <Sparkles size={13} color="#38bdf8" /> Drone & Aerial
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{
+                    borderColor: preset === 'classical' ? '#a855f7' : '',
+                    background: preset === 'classical' ? 'rgba(168, 85, 247, 0.2)' : '',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
+                    justifyContent: 'center',
+                    fontWeight: preset === 'classical' ? 700 : 500,
+                  }}
+                  onClick={() => applyPreset('classical')}
+                  title="INT395 Scikit-learn Pipeline (HOG + LBP + Canny on 3x3 Zones)"
+                >
+                  <Layers size={13} color="#a855f7" /> Classical ML
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
                   style={{
                     borderColor: preset === 'dense' ? '#38bdf8' : '',
                     background: preset === 'dense' ? 'rgba(56, 189, 248, 0.15)' : '',
-                    padding: '8px 6px',
-                    fontSize: '0.78rem',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
                     justifyContent: 'center',
                   }}
                   onClick={() => applyPreset('dense')}
                 >
-                  <Sparkles size={14} color="#38bdf8" /> High Precision
+                  <Sparkles size={13} color="#38bdf8" /> High Precision
                 </button>
                 <button
                   type="button"
@@ -722,13 +768,13 @@ export default function App() {
                   style={{
                     borderColor: preset === 'balanced' ? '#38bdf8' : '',
                     background: preset === 'balanced' ? 'rgba(56, 189, 248, 0.15)' : '',
-                    padding: '8px 6px',
-                    fontSize: '0.78rem',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
                     justifyContent: 'center',
                   }}
                   onClick={() => applyPreset('balanced')}
                 >
-                  <Target size={14} color="#f59e0b" /> Balanced
+                  <Target size={13} color="#f59e0b" /> Balanced
                 </button>
                 <button
                   type="button"
@@ -736,87 +782,137 @@ export default function App() {
                   style={{
                     borderColor: preset === 'fast' ? '#38bdf8' : '',
                     background: preset === 'fast' ? 'rgba(56, 189, 248, 0.15)' : '',
-                    padding: '8px 6px',
-                    fontSize: '0.78rem',
+                    padding: '8px 4px',
+                    fontSize: '0.74rem',
                     justifyContent: 'center',
                   }}
                   onClick={() => applyPreset('fast')}
                 >
-                  <Zap size={14} color="#10b981" /> Real-Time
+                  <Zap size={13} color="#10b981" /> Real-Time
                 </button>
               </div>
             </div>
 
-            <div className="slider-group">
-              <div className="slider-label">
-                <span>Confidence Threshold</span>
-                <span style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>{(confidence * 100).toFixed(0)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.05"
-                max="0.60"
-                step="0.05"
-                value={confidence}
+            {/* Inference Engine Mode Dropdown */}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                Inference Engine & Tiling Mode
+              </label>
+              <select
+                value={detectionMode}
                 onChange={(e) => {
-                  setConfidence(parseFloat(e.target.value));
-                  setPreset('custom');
+                  setDetectionMode(e.target.value);
+                  if (e.target.value === 'aerial_sliced') setPreset('aerial');
+                  else if (e.target.value === 'classical') setPreset('classical');
+                  else setPreset('custom');
                 }}
-              />
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                }}
+              >
+                <option value="standard">🚀 Standard Single-Pass (YOLOv8 - Best for Webcam & Close Photos)</option>
+                <option value="aerial_sliced">🚁 Aerial & Ultra-Dense Sliced (SAHI 480px - Best for Drones & Festivals)</option>
+                <option value="classical">🔬 INT395 Classical ML (HOG + LBP + Canny Regression on 3x3 Grid)</option>
+              </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Model Backbone
-                </label>
-                <select
-                  value={modelName}
-                  onChange={(e) => {
-                    setModelName(e.target.value);
-                    setPreset('custom');
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-color)',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  <option value="yolov8m.pt">YOLOv8 Medium (Most Accurate)</option>
-                  <option value="yolov8s.pt">YOLOv8 Small</option>
-                  <option value="yolov8n.pt">YOLOv8 Nano (Fastest)</option>
-                </select>
+            {detectionMode === 'classical' ? (
+              <div style={{
+                background: 'rgba(168, 85, 247, 0.1)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                padding: '10px 12px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                color: '#e9d5ff',
+                lineHeight: 1.4,
+              }}>
+                <strong>INT395 Syllabus Engine:</strong> Uses the serialized Scikit-learn <code style={{ color: '#38bdf8' }}>crowdpulse_pipeline.joblib</code> VotingRegressor. Extracts 39-D spatial micro-texture features (HOG orientations, LBP uniformity, Canny edge density) to calculate crowd density directly per zone.
               </div>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                  Input Resolution
-                </label>
-                <select
-                  value={imgsz}
-                  onChange={(e) => {
-                    setImgsz(parseInt(e.target.value));
-                    setPreset('custom');
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-color)',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  <option value={1280}>1280 px (HD - Best for Crowds)</option>
-                  <option value={1024}>1024 px</option>
-                  <option value={640}>640 px (High FPS)</option>
-                </select>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="slider-group">
+                  <div className="slider-label">
+                    <span>Confidence Threshold</span>
+                    <span style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>{(confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.02"
+                    max="0.60"
+                    step="0.02"
+                    value={confidence}
+                    onChange={(e) => {
+                      setConfidence(parseFloat(e.target.value));
+                      setPreset('custom');
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Model Backbone
+                    </label>
+                    <select
+                      value={modelName}
+                      onChange={(e) => {
+                        setModelName(e.target.value);
+                        setPreset('custom');
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <option value="yolov8_head_detector.pt">YOLOv8 Head Specialist (1500+ Festival Crowds)</option>
+                      <option value="yolov8m.pt">YOLOv8 Medium (Most Accurate for Surveillance)</option>
+                      <option value="yolov8s.pt">YOLOv8 Small (Fast / Sliced)</option>
+                      <option value="yolov8n.pt">YOLOv8 Nano (Fastest)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Input Resolution {detectionMode === 'aerial_sliced' ? '(Tile Size)' : ''}
+                    </label>
+                    <select
+                      value={imgsz}
+                      onChange={(e) => {
+                        setImgsz(parseInt(e.target.value));
+                        setPreset('custom');
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <option value={2560}>2560 px (Ultra-HD 4K Aerial)</option>
+                      <option value={1920}>1920 px (Full HD - Aerial Drone & 11 Athletes)</option>
+                      <option value={1280}>1280 px (HD - Standard)</option>
+                      <option value={1024}>1024 px (Fast HD)</option>
+                      <option value={640}>640 px (High FPS)</option>
+                      <option value={480}>480 px (Native Drone Tiles)</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', gap: '16px', marginTop: '2px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', cursor: 'pointer' }}>

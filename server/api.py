@@ -44,9 +44,11 @@ app.add_middleware(
 MODELS = {}
 
 def get_yolo_model(model_name: str = "yolov8m.pt") -> YOLO:
-    """Loads and caches YOLO models (yolov8n, yolov8s, yolov8m)."""
+    """Loads and caches YOLO models (yolov8n, yolov8s, yolov8m, yolov8_head_detector.pt)."""
     if model_name not in MODELS:
-        model_file = PROJECT_ROOT / model_name
+        model_file = PROJECT_ROOT / "models" / model_name
+        if not model_file.exists():
+            model_file = PROJECT_ROOT / model_name
         target = str(model_file) if model_file.exists() else model_name
         print(f"Loading detection model '{target}'...")
         MODELS[model_name] = YOLO(target)
@@ -55,6 +57,92 @@ def get_yolo_model(model_name: str = "yolov8m.pt") -> YOLO:
 
 # Preload default model
 get_yolo_model("yolov8m.pt")
+
+CLASSICAL_PIPELINE = None
+
+def get_classical_pipeline():
+    """Loads and caches the INT395 trained Scikit-learn crowd counting pipeline."""
+    global CLASSICAL_PIPELINE
+    if CLASSICAL_PIPELINE is None:
+        model_file = PROJECT_ROOT / "models" / "crowdpulse_pipeline.joblib"
+        if model_file.exists():
+            import joblib
+            print(f"Loading INT395 classical pipeline '{model_file}'...")
+            CLASSICAL_PIPELINE = joblib.load(str(model_file))
+            print("Classical pipeline loaded successfully.")
+    return CLASSICAL_PIPELINE
+
+
+def run_sliced_detection(
+    image: np.ndarray,
+    detector: YOLO,
+    confidence: float = 0.06,
+    tile_size: int = 480,
+    overlap: int = 80,
+    iou_thresh: float = 0.35,
+) -> tuple:
+    """
+    Sliced-Aided Hyper Inference (SAHI style) for ultra-dense & aerial/drone crowds.
+    Slices large high-res images into native-resolution patches so tiny overhead heads (5-15px)
+    are not destroyed by global downsampling, runs NMS, and returns merged global boxes.
+    """
+    h, w = image.shape[:2]
+    step = max(100, tile_size - overlap)
+    all_boxes = []
+    all_confs = []
+
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            y2 = min(h, y + tile_size)
+            x2 = min(w, x + tile_size)
+            patch = image[y:y2, x:x2]
+            res = detector(patch, classes=[0], conf=confidence, imgsz=tile_size, verbose=False)
+            boxes = res[0].boxes
+            if boxes is not None and len(boxes) > 0:
+                for b in boxes:
+                    bx1, by1, bx2, by2 = b.xyxy[0].cpu().numpy()
+                    all_boxes.append([float(bx1 + x), float(by1 + y), float(bx2 + x), float(by2 + y)])
+                    all_confs.append(float(b.conf[0].cpu().numpy()))
+
+    if not all_boxes:
+        return [], []
+
+    nms_boxes = [[int(b[0]), int(b[1]), int(b[2] - b[0]), int(b[3] - b[1])] for b in all_boxes]
+    indices = cv2.dnn.NMSBoxes(nms_boxes, all_confs, score_threshold=confidence, nms_threshold=iou_thresh)
+
+    final_boxes = []
+    final_confs = []
+    if len(indices) > 0:
+        for idx in indices.flatten():
+            final_boxes.append(all_boxes[idx])
+            final_confs.append(all_confs[idx])
+
+    return final_boxes, final_confs
+
+
+def run_classical_detection(image: np.ndarray, grid_rows: int = 3, grid_cols: int = 3) -> dict:
+    """
+    Runs the INT395 Classical Supervised ML VotingRegressor pipeline (HOG + LBP + Canny edge density)
+    across the 3x3 spatial grid.
+    """
+    from src.data_loader import partition_image_into_grid
+    from src.feature_extractor import extract_patch_features
+    import pandas as pd
+
+    pipeline = get_classical_pipeline()
+    if pipeline is None:
+        raise ValueError("Classical model pipeline 'models/crowdpulse_pipeline.joblib' not found.")
+
+    partitions = partition_image_into_grid(image, (grid_rows, grid_cols))
+    feats = [extract_patch_features(p['patch'], row=p['row'], col=p['col']) for p in partitions]
+    df = pd.DataFrame(feats)
+    preds = pipeline.predict(df)
+
+    zone_counts = {}
+    for p, pred in zip(partitions, preds):
+        zone_counts[p['zone_id']] = max(0, int(round(float(pred))))
+
+    return zone_counts
 
 
 def encode_image_base64(image: np.ndarray, quality: int = 88) -> str:
@@ -77,69 +165,107 @@ def process_detection(
     draw_boxes: bool = True,
     draw_grid: bool = True,
     draw_points: bool = True,
+    detection_mode: str = "standard",  # "standard", "aerial_sliced", "classical"
 ) -> dict:
     """
     Executes live human detection with adaptive high-resolution inference,
-    maps persons into 3x3 zones, evaluates multi-agent alerts, and returns
-    annotated imagery with telemetry data.
+    sliced native-resolution tiling for aerial/drone crowds, or classical
+    INT395 feature regression. Maps persons into 3x3 zones, evaluates multi-agent
+    alerts, and returns annotated imagery with telemetry data.
     """
     start_time = time.time()
     h, w = image.shape[:2]
-
-    # Adaptive image resolution: if image is large, use 1280 or higher
     max_dim = max(h, w)
-    effective_imgsz = imgsz
-    if imgsz == 0:  # Auto mode
-        effective_imgsz = 1280 if max_dim >= 1200 else 960 if max_dim >= 800 else 640
-
-    detector = get_yolo_model(model_name)
-
-    # Run inference for person class (class 0 in COCO)
-    results = detector(
-        image,
-        classes=[0],
-        conf=confidence,
-        iou=iou,
-        imgsz=effective_imgsz,
-        verbose=False,
-    )
-    boxes = results[0].boxes
 
     # Slicing grid dimensions (3x3 default)
     grid_rows, grid_cols = 3, 3
     row_step = h / float(grid_rows)
     col_step = w / float(grid_cols)
 
-    # Initialize zone counts
+    # Initialize zone counts & detection list
     zone_counts = {f"Zone_{r}_{c}": 0 for r in range(grid_rows) for c in range(grid_cols)}
     detections_list = []
 
-    if boxes is not None and len(boxes) > 0:
-        for idx, box in enumerate(boxes):
-            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-            conf = float(box.conf[0].cpu().numpy())
+    model_display = model_name
+    resolution_display = f"{imgsz}px"
 
-            # Determine spatial center of detected person
+    if detection_mode == "classical":
+        zone_counts = run_classical_detection(image, grid_rows, grid_cols)
+        total_count = sum(zone_counts.values())
+        model_display = "CrowdPulse VotingRegressor (INT395 HOG + LBP + Canny)"
+        resolution_display = "3x3 Spatial Feature Augmentation"
+    elif detection_mode == "aerial_sliced":
+        # Sliced Aided Hyper Inference (SAHI)
+        effective_model = model_name
+        detector = get_yolo_model(effective_model)
+        sliced_conf = confidence
+        raw_boxes, raw_confs = run_sliced_detection(
+            image,
+            detector,
+            confidence=sliced_conf,
+            tile_size=480,
+            overlap=80,
+            iou_thresh=iou,
+        )
+        for idx, (box, conf) in enumerate(zip(raw_boxes, raw_confs)):
+            x1, y1, x2, y2 = box
             cx = float((x1 + x2) / 2.0)
             cy = float((y1 + y2) / 2.0)
-
-            # Map to grid zone
             r = max(0, min(grid_rows - 1, int(cy / row_step)))
             c = max(0, min(grid_cols - 1, int(cx / col_step)))
             zone_id = f"Zone_{r}_{c}"
             zone_counts[zone_id] += 1
-
             detections_list.append({
                 "id": idx + 1,
                 "box": [round(float(x1), 1), round(float(y1), 1), round(float(x2), 1), round(float(y2), 1)],
                 "center": [round(cx, 1), round(cy, 1)],
-                "confidence": round(conf, 3),
+                "confidence": round(float(conf), 3),
                 "zone_id": zone_id,
                 "row": r,
                 "col": c,
             })
+        total_count = len(detections_list)
+        model_display = f"{effective_model} (Sliced Native-Resolution SAHI)"
+        resolution_display = "480px Sliced Native Tiles"
+    else:
+        # Standard Single-Pass Detection
+        max_dim = max(h, w)
+        effective_imgsz = imgsz
+        if imgsz == 0:
+            effective_imgsz = 1280 if max_dim >= 1200 else 960 if max_dim >= 800 else 640
 
-    total_count = len(detections_list)
+        detector = get_yolo_model(model_name)
+        results = detector(
+            image,
+            classes=[0],
+            conf=confidence,
+            iou=iou,
+            imgsz=effective_imgsz,
+            verbose=False,
+        )
+        boxes = results[0].boxes
+        if boxes is not None and len(boxes) > 0:
+            for idx, box in enumerate(boxes):
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                conf = float(box.conf[0].cpu().numpy())
+                cx = float((x1 + x2) / 2.0)
+                cy = float((y1 + y2) / 2.0)
+                r = max(0, min(grid_rows - 1, int(cy / row_step)))
+                c = max(0, min(grid_cols - 1, int(cx / col_step)))
+                zone_id = f"Zone_{r}_{c}"
+                zone_counts[zone_id] += 1
+                detections_list.append({
+                    "id": idx + 1,
+                    "box": [round(float(x1), 1), round(float(y1), 1), round(float(x2), 1), round(float(y2), 1)],
+                    "center": [round(cx, 1), round(cy, 1)],
+                    "confidence": round(conf, 3),
+                    "zone_id": zone_id,
+                    "row": r,
+                    "col": c,
+                })
+        total_count = len(detections_list)
+        model_display = model_name
+        resolution_display = f"{effective_imgsz}px"
 
     # Multi-Agent Coordination Broker Evaluation
     coordinator = AgentCoordinator(
@@ -245,8 +371,9 @@ def process_detection(
     return {
         "total_count": total_count,
         "inference_time_ms": elapsed_ms,
-        "model_used": model_name,
-        "resolution_used": f"{effective_imgsz}px",
+        "model_used": model_display,
+        "resolution_used": resolution_display,
+        "detection_mode": detection_mode,
         "image_dimensions": {"width": w, "height": h},
         "zone_counts": zone_counts,
         "grid_matrix": grid_matrix,
@@ -303,6 +430,7 @@ def detect_sample(
     model_name: str = Form("yolov8m.pt"),
     green_cutoff: float = Form(10.0),
     red_cutoff: float = Form(25.0),
+    detection_mode: str = Form("standard"),
 ):
     """Executes detection on a preloaded sample frame."""
     sample_path = PROJECT_ROOT / "app" / "assets" / filename
@@ -321,6 +449,7 @@ def detect_sample(
         model_name=model_name,
         green_cutoff=green_cutoff,
         red_cutoff=red_cutoff,
+        detection_mode=detection_mode,
     )
 
 
@@ -336,6 +465,7 @@ async def detect_upload(
     draw_boxes: bool = Form(True),
     draw_grid: bool = Form(True),
     draw_points: bool = Form(True),
+    detection_mode: str = Form("standard"),
 ):
     """
     Accepts an uploaded image file, runs real-time person detection,
@@ -360,6 +490,7 @@ async def detect_upload(
             draw_boxes=draw_boxes,
             draw_grid=draw_grid,
             draw_points=draw_points,
+            detection_mode=detection_mode,
         )
         return JSONResponse(content=response)
     except Exception as e:
