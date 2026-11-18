@@ -108,7 +108,7 @@ def generate_project_report(pdf_path: Path):
     story.append(Paragraph("CrowdPulse: Multi-Agent Crowd Density Estimation and Coordinated Alerting System", title_style))
     story.append(Spacer(1, 8))
     story.append(Paragraph("<b>Problem Statement ID:</b> #20 | <b>Target Dataset:</b> ShanghaiTech Part B", sub_title))
-    story.append(Paragraph("<b>Group Members:</b> Reg. Nos: 12201941, 12202052, 12203114", sub_title))
+    story.append(Paragraph("<b>Submitted By:</b> Pudi Sai Charan Teja (Reg: 12507339) | <b>Section:</b> K3P24XC | <b>Guide:</b> Mr. Abhishek", sub_title))
     story.append(Spacer(1, 12))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cbd5e1"), spaceAfter=15))
 
@@ -253,7 +253,7 @@ def generate_viva_presentation(pptx_path: Path):
     slides_data = [
         {
             "title": "CrowdPulse",
-            "subtitle": "Multi-Agent Crowd Density Estimation and Coordinated Alerting System\nINT395: Supervised Learning | Problem Statement #20\nGroup Members: 12201941, 12202052, 12203114",
+            "subtitle": "Multi-Agent Crowd Density Estimation and Coordinated Alerting System\nINT395: Supervised Learning | Problem Statement #20\nAuthor: Pudi Sai Charan Teja (Reg: 12507339) | Section: K3P24XC\nFaculty / Guide: Mr. Abhishek | Lovely Professional University",
             "bullets": [],
             "is_title": True,
         },
@@ -419,14 +419,26 @@ def generate_viva_presentation(pptx_path: Path):
                 bp.font.color.rgb = WHITE
                 bp.space_before = Pt(14)
 
-    prs.save(str(pptx_path))
-    print(f"Viva presentation generated: {pptx_path}")
+    try:
+        prs.save(str(pptx_path))
+        print(f"Viva presentation generated: {pptx_path}")
+    except PermissionError:
+        alt_path = pptx_path.parent / "CrowdPulse_Individual_Presentation.pptx"
+        prs.save(str(alt_path))
+        print(f"Original file was open in PowerPoint. Saved updated deck to: {alt_path}")
 
 
 if __name__ == "__main__":
     report_file = DOCS_DIR / "PROJECT_REPORT.pdf"
     presentation_file = DOCS_DIR / "PRESENTATION.pptx"
 
-    generate_project_report(report_file)
+    try:
+        from generate_lpu_report import build_report
+        build_report()
+        print(f"Formal LPU project report generated: {report_file}")
+    except Exception as e:
+        print(f"Fallback to internal report generator: {e}")
+        generate_project_report(report_file)
+
     generate_viva_presentation(presentation_file)
 

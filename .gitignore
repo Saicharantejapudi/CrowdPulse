@@ -61,5 +61,8 @@ data/ShanghaiTech/
 *.tar.gz
 *.rar
 
+# Office temporary lock files
+~$*
+
 # Streamlit config / cache
 .streamlit/
