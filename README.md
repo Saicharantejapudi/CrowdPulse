@@ -1,10 +1,20 @@
+---
+title: CrowdPulse Live Crowd Telemetry
+emoji: 👥
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # CrowdPulse: Multi-Agent Crowd Density Estimation and Coordinated Alerting System
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-Headless-green.svg)](https://opencv.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-red.svg)](https://streamlit.io/)
-[![Pytest Passed](https://img.shields.io/badge/Pytest-13%2F13%20Passing-brightgreen.svg)](https://docs.pytest.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![React 18](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev/)
+[![Pytest Passed](https://img.shields.io/badge/Pytest-14%2F14%20Passing-brightgreen.svg)](https://docs.pytest.org/)
 [![SHAP](https://img.shields.io/badge/Explainability-SHAP%20TreeExplainer-purple.svg)](https://shap.readthedocs.io/)
 
 ---
@@ -13,9 +23,12 @@
 - **Course:** INT395 - Supervised Learning
 - **Problem Statement ID:** #20
 - **Project Title:** CrowdPulse: Multi-Agent Crowd Density Estimation and Coordinated Alerting System
-- **Registration Numbers:** `12201941`, `12202052`, `12203114`
-- **GitHub Repository Link:** [https://github.com/Pudisiva/CrowdPulse](https://github.com/Pudisiva/CrowdPulse)
-- **Live Deployed Project Link:** [https://crowdpulse.streamlit.app](https://crowdpulse.streamlit.app)
+- **Student Name:** Pudi Sai Charan Teja
+- **Registration Number:** `12507339`
+- **Section:** `K3P24XC`
+- **Faculty / Project Guide:** Mr. Abhishek
+- **Institution:** School of Computing & Artificial Intelligence, Lovely Professional University, Phagwara
+- **GitHub Repository:** [https://github.com/Saicharantejapudi/CrowdPulse](https://github.com/Saicharantejapudi/CrowdPulse)
 - **Target Dataset:** ShanghaiTech Crowd Counting Dataset (Part B)
 
 ---

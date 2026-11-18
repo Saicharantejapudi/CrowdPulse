@@ -55,8 +55,11 @@ def get_yolo_model(model_name: str = "yolov8m.pt") -> YOLO:
         print(f"Model '{model_name}' loaded successfully.")
     return MODELS[model_name]
 
-# Preload default model
-get_yolo_model("yolov8m.pt")
+# Preload lightweight default model for instant health checks without exceeding free cloud RAM
+try:
+    get_yolo_model("yolov8n.pt")
+except Exception as e:
+    print(f"Deferred model loading: {e}")
 
 CLASSICAL_PIPELINE = None
 
