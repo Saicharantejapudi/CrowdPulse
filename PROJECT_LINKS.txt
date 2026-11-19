@@ -1,6 +1,11 @@
 Project Title: CrowdPulse: Multi-Agent Crowd Density Estimation and Coordinated Alerting System
+Course: INT395 - Supervised Learning
 Problem Statement ID: 20
-Registration Numbers of All Group Members: [RegNo1, RegNo2, RegNo3]
-GitHub Repository Link: https://github.com/<username>/crowdpulse
-Live Deployed Project Link: https://<app-name>.streamlit.app
-
+Candidate Name: Pudi Sai Charan Teja
+Registration Number: 12507339
+Section: K3P24XC
+Faculty Guide: Mr. Abhishek
+Institution: School of Computing & Artificial Intelligence, Lovely Professional University
+GitHub Repository Link: https://github.com/Saicharantejapudi/CrowdPulse
+Live Deployed Project Link: https://crowdpulse.streamlit.app/
+Dataset Link: https://www.kaggle.com/datasets/tthien/shanghaitech

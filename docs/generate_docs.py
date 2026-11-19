@@ -253,7 +253,7 @@ def generate_viva_presentation(pptx_path: Path):
     slides_data = [
         {
             "title": "CrowdPulse",
-            "subtitle": "Multi-Agent Crowd Density Estimation and Coordinated Alerting System\nINT395: Supervised Learning | Problem Statement #20\nAuthor: Pudi Sai Charan Teja (Reg: 12507339) | Section: K3P24XC\nFaculty / Guide: Mr. Abhishek | Lovely Professional University",
+            "subtitle": "Multi-Agent Crowd Density Estimation and Coordinated Alerting System\nINT395: Supervised Learning | Problem Statement #20\nAuthor: Pudi Sai Charan Teja (Reg: 12507339) | Section: K3P24XC\nFaculty / Guide: Mr. Abhishek | Lovely Professional University\nLive Demo: https://crowdpulse.streamlit.app/",
             "bullets": [],
             "is_title": True,
         },
@@ -349,13 +349,13 @@ def generate_viva_presentation(pptx_path: Path):
             "is_title": False,
         },
         {
-            "title": "Streamlit Telemetry Dashboard & Viva Summary",
-            "subtitle": "Interactive Live Deployment & Key Technical Achievements",
+            "title": "Streamlit Telemetry Dashboard & Live Deployment",
+            "subtitle": "Interactive Cloud Deployment at https://crowdpulse.streamlit.app/",
             "bullets": [
-                "Interactive Streamlit Dashboard (app/app.py): Live visual grid overlay, KPI metric cards, dynamic threshold sliders, and real-time SHAP waterfalls.",
-                "100% Automated Test Suite (tests/test_pipeline.py): 13 pytest tests passing (dimensions, inference, non-negativity, adjacency logic).",
-                "Complete Deliverable Ecosystem: Primary academic notebook (crowdpulse.ipynb) with all executed plots, report, presentation, and clean modular code.",
-                "Viva Summary: CrowdPulse delivers an edge-ready, explainable, and mathematically grounded alternative to deep learning for crowd safety.",
+                "Live Deployed Application (https://crowdpulse.streamlit.app/): Interactive Streamlit dashboard with 3x3 visual grid overlay, KPI metric cards, dynamic threshold sliders, and real-time SHAP waterfalls.",
+                "100% Automated Test Suite (tests/test_pipeline.py): 14/14 pytest unit tests passing across feature extraction, regression pipeline, and multi-agent coordination.",
+                "Dual Interface Architecture: Hosted Streamlit analytical suite for academic evaluation alongside high-speed React 18 + FastAPI Live Vision camera telemetry.",
+                "Viva Defense Summary: CrowdPulse delivers an edge-ready, explainable, and mathematically grounded alternative to black-box deep neural networks for crowd safety.",
             ],
             "is_title": False,
         },
@@ -414,10 +414,36 @@ def generate_viva_presentation(pptx_path: Path):
 
             for b_idx, bullet in enumerate(data["bullets"]):
                 bp = ctf.add_paragraph() if b_idx > 0 else ctf.paragraphs[0]
-                bp.text = f"•  {bullet}"
-                bp.font.size = Pt(17)
-                bp.font.color.rgb = WHITE
                 bp.space_before = Pt(14)
+                
+                import re
+                url_match = re.search(r'(https?://[^\s\)]+)', bullet)
+                if url_match:
+                    url = url_match.group(1)
+                    prefix = bullet[:url_match.start()]
+                    suffix = bullet[url_match.end():]
+                    
+                    r1 = bp.add_run()
+                    r1.text = f"•  {prefix}"
+                    r1.font.size = Pt(17)
+                    r1.font.color.rgb = WHITE
+                    
+                    r2 = bp.add_run()
+                    r2.text = url
+                    r2.font.size = Pt(17)
+                    r2.font.color.rgb = ACCENT_BLUE
+                    r2.font.underline = True
+                    r2.hyperlink.address = url
+                    
+                    if suffix:
+                        r3 = bp.add_run()
+                        r3.text = suffix
+                        r3.font.size = Pt(17)
+                        r3.font.color.rgb = WHITE
+                else:
+                    bp.text = f"•  {bullet}"
+                    bp.font.size = Pt(17)
+                    bp.font.color.rgb = WHITE
 
     try:
         prs.save(str(pptx_path))

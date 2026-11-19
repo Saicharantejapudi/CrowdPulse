@@ -9,15 +9,39 @@ import os
 import sys
 from pathlib import Path
 
-# Ensure project root is in sys.path
+# Ensure project root & src are in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+# Cross-platform / cross-version unpickle aliases:
+# 1. Alias _loss for HistGradientBoosting Poisson loss Cython unpickling
+try:
+    import sklearn._loss._loss as _loss_mod
+    sys.modules["_loss"] = _loss_mod
+except Exception:
+    pass
+
+# 2. Alias numpy._core for NumPy 1.x / 2.x cross-compatibility
+try:
+    import numpy as _np
+    if not hasattr(_np, "_core"):
+        import numpy.core as _np_core
+        sys.modules["numpy._core"] = _np_core
+        sys.modules["numpy._core.multiarray"] = _np_core.multiarray
+except Exception:
+    pass
 
 import cv2
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import shap
 import streamlit as st
 
 from src.agent_coordinator import AgentCoordinator
@@ -117,7 +141,48 @@ def load_champion_pipeline():
     model_path = PROJECT_ROOT / "models" / "crowdpulse_pipeline.joblib"
     if not model_path.exists():
         return None
-    return joblib.load(model_path)
+
+    # Patch joblib.numpy_pickle.NumpyUnpickler for resilient unpickling across environments
+    try:
+        import joblib.numpy_pickle
+        orig_find_class = joblib.numpy_pickle.NumpyUnpickler.find_class
+
+        def compat_find_class(self, module, name):
+            if module == "_loss":
+                try:
+                    import sklearn._loss._loss as _loss_mod
+                    return getattr(_loss_mod, name)
+                except Exception:
+                    pass
+            try:
+                return orig_find_class(self, module, name)
+            except (ModuleNotFoundError, AttributeError):
+                if module == "_loss":
+                    import sklearn._loss._loss as _loss_mod
+                    return getattr(_loss_mod, name)
+                if module.startswith("numpy._core"):
+                    alt_mod = module.replace("numpy._core", "numpy.core")
+                    return orig_find_class(self, alt_mod, name)
+                elif module.startswith("numpy.core"):
+                    alt_mod = module.replace("numpy.core", "numpy._core")
+                    return orig_find_class(self, alt_mod, name)
+                elif module == "src.feature_extractor":
+                    import feature_extractor
+                    return getattr(feature_extractor, name)
+                elif module == "feature_extractor":
+                    from src import feature_extractor
+                    return getattr(feature_extractor, name)
+                raise
+
+        joblib.numpy_pickle.NumpyUnpickler.find_class = compat_find_class
+    except Exception:
+        pass
+
+    try:
+        return joblib.load(model_path)
+    except Exception as e:
+        st.error(f"⚠️ Model Loading Error: {e}")
+        return None
 
 
 @st.cache_data

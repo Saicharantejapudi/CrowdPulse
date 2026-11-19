@@ -64,5 +64,5 @@ data/ShanghaiTech/
 # Office temporary lock files
 ~$*
 
-# Streamlit config / cache
-.streamlit/
+# Streamlit cache
+.streamlit/cache/

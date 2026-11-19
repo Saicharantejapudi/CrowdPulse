@@ -28,8 +28,9 @@ app_port: 7860
 - **Section:** `K3P24XC`
 - **Faculty / Project Guide:** Mr. Abhishek
 - **Institution:** School of Computing & Artificial Intelligence, Lovely Professional University, Phagwara
+- **Live Deployed Application:** [https://crowdpulse.streamlit.app/](https://crowdpulse.streamlit.app/)
 - **GitHub Repository:** [https://github.com/Saicharantejapudi/CrowdPulse](https://github.com/Saicharantejapudi/CrowdPulse)
-- **Target Dataset:** ShanghaiTech Crowd Counting Dataset (Part B)
+- **Target Dataset:** [ShanghaiTech Crowd Counting Dataset — Kaggle](https://www.kaggle.com/datasets/tthien/shanghaitech)
 
 ---
 

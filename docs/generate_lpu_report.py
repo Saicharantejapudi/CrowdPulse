@@ -740,10 +740,12 @@ def build_report():
         body_style,
     ))
 
-    story.append(Paragraph("<b>5.4 Dual Streamlit Simulation Engine (`app/app.py`)</b>", h1_style))
+    story.append(Paragraph("<b>5.4 Cloud Deployment &amp; Hosted Telemetry Portal</b>", h1_style))
     story.append(Paragraph(
-        "Alongside the React dashboard, CrowdPulse provides a secondary <b>Streamlit</b> portal engineered for academic evaluation, interactive SHAP waterfall analysis, "
-        "and multi-agent threshold sensitivity tuning.",
+        "Alongside the local React dashboard, CrowdPulse is officially deployed on <b>Streamlit Community Cloud</b>, providing an accessible, high-performance public interface: "
+        "<br/>&bull; <b>Live Deployed Application Link:</b> <font color='#1e3a8a'><b><u>https://crowdpulse.streamlit.app/</u></b></font> "
+        "<br/>&bull; <b>Public GitHub Repository:</b> <font color='#1e3a8a'><b><u>https://github.com/Saicharantejapudi/CrowdPulse</u></b></font> "
+        "<br/>The hosted portal allows external academic evaluators, facility operators, and researchers to interactively inspect ShanghaiTech Part B ground-truth mappings, run on-demand SHAP waterfall feature attributions, and simulate multi-agent coordinated bottleneck alerts across diverse crowd densities.",
         body_style,
     ))
     story.append(PageBreak())
